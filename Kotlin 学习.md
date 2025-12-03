@@ -108,7 +108,7 @@ s.lastIndexOf('l'/"lo") // 输出3
 // 舍弃前 n 个字符，返回剩余部分
 "abcdef".drop(2) // 输出cdef
 // 舍弃后 n 个字符，返回剩余部分
-"abcdef".drop(2) // 输出abcd
+"abcdef".dropLast(2) // 输出abcd
 
 // ---------- 字符串替换 ----------
 "abac".replace('a', 'x') // 输出 xbxc
@@ -435,3 +435,266 @@ loop@ for (i in 1..5) {
 /// 输出[1:1,2]
 ```
 
+# 类和对象
+
+在kotlin中类可以包含以下东西:`构造函数`,`初始化代码块`,`函数`,`属性`,`内部类`,`对象声明`
+
+我们将从这6个地方开始入手
+
+## 类的属性
+
+其实和Java中一样,只不过需要用到`var`和`val`来声明这个属性是否可变
+
+```kotlin
+class Student() {
+    val id: Int = 0
+    var age: Int = 0
+    var name: String = ""
+}
+```
+
+此时我们就成功定义了一个学生类,接下来我们使用它.
+
+```kotlin
+/// 不用添加new关键字 Kotlin省去了
+val stu = Student() // 创建对象
+// 访问属性
+val id = stu.id
+// 修改属性
+stu.age = 18
+val age = stu.age
+```
+
+下面我们可以给这些属性添加`get`和`set`
+
+```kotlin
+var age: Int = 0
+        get() = field
+        set(value) {
+            field = if (value > 0) value else 0
+        }
+```
+
+> field 在那个属性下面就指代的是谁
+
+其实我们发现,就算我们没有写`get`和`set`我们好像也可以访问到属性,和改变属性的值.这是因为kotlin默认帮我们设置了`get`和`set`,所以我们在初始化的时候必须要赋值,或者类型为可空类型.如果类型是`val`那么就不会有`set`只会有get.
+
+## 构造函数
+
+### 主构造函数
+
+其实我们可以发现,好像类里面不光有把属性写在`{}`花括号里面的还有写在`()`括号内部的,其实这里面不是函数的属性了,他属于是类的构造函数.
+
+```kotlin
+class Student(id: Int, age: Int, name: String) {
+  	/// init外部不可访问,创建时调用
+    init {
+        println("Student $id $age $name")
+    }
+}
+```
+
+其实这样写我们发现,很麻烦,因为在类里面我们还需要有属性来承接传递进来的值,但是我们只需要有一个小改变就会然代码不一样:
+
+```kotlin
+class Student(val id: Int, var age: Int, var name: String) {
+    init {
+        println("Student $id $age $name")
+    }
+
+    fun printAge() {
+        println("Student $name $age")
+    }
+}
+
+/// 使用
+// 创建对象
+val stu = Student(0, 1, "w")
+stu.age = 20
+stu.printAge() // 返回结果为 Student w 20
+```
+
+这样我们这个类,既有`构造参数`也可以在外部访问和修改类的属性了
+
+> 如果我们要修改类的`可见性`或加了注解`constructor`就必须写出来,因为Kotlin帮我做了处理只不过没有显示出来而且,但是如果我们添加了修饰符,顺序就会出问题,语法就会混乱所以只有我们自己添加
+> 时序如下:
+> [注解] [可见性修饰符] constructor (...)
+
+### 次构造函数
+
+有主构造函数,必然就会有次构造函数.有时候我们发现有的类可以传递一个参数或两个参数,或者传递的参数都不一样,这就是用的次构造函数,下面我们来定义一个次构造函数
+
+```kotlin
+class Student(val id: Int) {
+    var age: Int = 0
+    var name: String = ""
+
+    constructor(id: Int, age: Int, name: String) : this(id) {
+        this.name = name
+        this.age = age
+    }
+
+    init {
+        println("Student $id")
+    }
+
+    fun printAge() {
+        println("Student $id $age")
+    }
+}
+```
+
+我们在类的里面添加了一个`constructor`构造函数关键字,并且加了一些构造参数,但是次构造函数里面就不能添加`val`或`var`参数了,使用的时候我们就可以有两种选择:
+
+```kotlin
+var stu1 = Student(123)
+var stu2 = Student(456,20,"W")
+```
+
+## 抽象类
+
+**抽象**是面向对象编程的特征之一，类本身，或类中的部分成员，都可以声明为`abstract`的。抽象成员在类中不存在具体的实现。
+
+> 注意：无需对抽象类或抽象成员标注open注解。
+
+抽象类的实现方式
+
+```kotlin
+abstract class Animal {
+    /// 必须重写
+    abstract fun eat()
+
+    /// 可选
+    open fun sleep() {
+        println("sleeping")
+    }
+}
+
+class Dog : Animal() {
+    override fun eat() {
+        println("eating")
+    }
+
+    override fun sleep() {
+        super.sleep() // 调用父类的方法
+        println("Dog sleeping")
+    }
+}
+
+/// 调用
+val dog = Dog()
+dog.eat()
+dog.sleep()
+```
+
+## 嵌套类
+
+我们可以把类嵌套在其他类中，看以下实例：
+
+```kotlin
+class Outer {                  // 外部类
+    private val bar: Int = 1
+    class Nested {             // 嵌套类
+        fun foo() = 2
+    }
+}
+
+/// 使用
+val demo = Outer.Nested().foo()
+println(demo) // 输出结果 2
+```
+
+我们发现,在Nested里面无法直接使用Outer里面的东西,下面我们就要引出我们另外一个**内部类**.
+
+## 内部类
+
+内部类使用 `inner` 关键字来表示。
+
+内部类会带有一个对外部类的对象的**引用**，所以内部类可以访问外部类成员属性和成员函数。
+
+```kotlin
+class Outer {
+    private val bar: Int = 1
+    var v = "成员属性"
+    /**嵌套内部类**/
+    inner class Inner {
+        fun foo() = bar  // 访问外部类成员
+        fun innerTest() {
+            var o = this@Outer //获取外部类的成员变量
+            println("内部类可以引用外部类的成员，例如：" + o.v)
+        }
+    }
+}
+
+/// 使用
+val demo = Outer().Inner().foo()
+println(demo) //   1
+val demo2 = Outer().Inner().innerTest()
+println(demo2) // 内部类可以引用外部类的成员，例如：成员属性
+```
+
+>为了消除歧义，要访问来自外部作用域的 this，我们使用this@label，其中 @label 是一个 代指 this 来源的标签。
+
+## 匿名内部类
+
+使用**对象表达式**来创建匿名内部类：
+
+```kotlin
+class Test {
+    var v = "成员属性"
+
+    fun setInterFace(test: TestInterFace) {
+        test.test()
+    }
+}
+
+/// 实现
+val test = Test()
+/**
+ * 采用对象表达式来创建接口对象，即匿名内部类的实例。
+ */
+test.setInterFace(object : TestInterFace {
+    override fun test() {
+        println("对象表达式创建匿名内部类的实例")
+    }
+})
+
+/// 但是尽可能承接一下这个内部类(避免内存泄漏)
+
+val testInterFace = object : TestInterFace {
+    override fun test() {
+        println("实现接口")
+    }
+}
+/// 再放进去
+test.setInterFace(testInterFace)
+```
+
+>编译器会自动把 lambda 转成匿名内部类，但不需要写 `object : ... {}`
+>
+>
+
+## 类的修饰符
+
+类的修饰符包括**类属性修饰符**和**访问权限修饰符**:
+
+- 类属性修饰符
+
+  ```kotlin
+  abstract    // 抽象类  
+  final       // 类不可继承，默认属性
+  enum        // 枚举类
+  open        // 类可继承，类默认是final的
+  annotation  // 注解类
+  ```
+
+- 访问权限修饰符
+
+  ```kotlin
+  private    // 仅在同一个文件中可见
+  protected  // 同一个文件中或子类可见
+  public     // 所有调用的地方都可见
+  internal   // 同一个模块中可见
+  ```
+
+  
