@@ -892,6 +892,56 @@ class Student(var name: String, age: Int, var no: String, var score: Int) : Pers
 如上代码片段中，子类`Student`主构造方法的第一个字段`name`前边加`var`关键字会报错。
 解决方法:1.删除var 2.将`Person`里面的`name`修改为`open`,然后使用`override`重写.
 
+## 装饰器
+
+当你想给某个对象增加功能时，如果用继承，会导致类爆炸、组合不灵活、扩展成本非常高。
+
+装饰器解决的，就是：**动态扩展对象功能，而不修改原类、不增加复杂继承体系。**
+
+```kotlin
+open class Coffee {
+    open var cost: Int = 0
+    open fun getCost(): Int {
+        return cost
+    }
+}
+
+class SimpleCoffee : Coffee() {
+    override var cost: Int = 10
+}
+
+open class CoffeeDecorator(val coffee: Coffee) : Coffee() {
+    override var cost: Int = coffee.cost
+    override fun getCost(): Int {
+        return coffee.cost
+    }
+}
+
+/// 添加牛奶
+class MilkDecorator(coffee: Coffee) : CoffeeDecorator(coffee) {
+    override var cost: Int = coffee.cost + 3
+    override fun getCost(): Int {
+        return coffee.cost + 3
+    }
+}
+
+/// 添加糖
+class SugarDecorator(coffee: Coffee) : CoffeeDecorator(coffee) {
+    override var cost: Int = coffee.cost + 3
+    override fun getCost(): Int {
+        return coffee.cost + 2
+    }
+}
+
+var coffee: Coffee = SimpleCoffee()
+coffee = MilkDecorator(coffee)
+coffee = SugarDecorator(coffee)
+/// 使用属性
+println("Coffee cost: ${coffee.cost}") // Coffee cost:15
+/// 使用方法
+println("Coffee cost: ${coffee.getCost()}") // Coffee cost:15
+```
+
 # 接口
 
 ## 实现接口
@@ -993,6 +1043,211 @@ c.foo(); // foo A B
 c.bar(); // bar A B
 d.foo(); // foo D
 d.bar(); // bar D
+```
+
+# 拓展
+
+Kotlin 可以对一个类的属性和方法进行扩展，且不需要继承或使用 `Decorator(装饰器)` 模式
+
+扩展是一种静态行为，对被扩展的类代码本身不会造成任何影响。
+
+## 扩展函数
+
+扩展函数可以在已有类中添加新的方法，不会对原类做修改，扩展函数定义形式：
+
+```kotlin
+fun [接收者].[函数名]([参数]){
+  ...
+}
+```
+
+以下实例扩展 User 类 ：
+
+```kotlin
+class User(var name:String)
+
+/**扩展函数**/
+fun User.Print(){
+    print("用户名 $name")
+}
+
+val user = User("jeremy")
+user.Print() // 用户名 jeremy
+```
+
+下面代码为 MutableList 添加一个swap 函数：
+
+```kotlin
+fun MutableList<Int>.swap(index1: Int, index2: Int) {
+    val tmp = this[index1] //  this 对应该列表
+    this[index1] = this[index2]
+    this[index2] = tmp
+}
+
+val l = mutableListOf(1, 2, 3)
+// 位置 0 和 2 的值做了互换
+l.swap(0, 2) // 'swap()' 函数内的 'this' 将指向 'l' 的值
+
+println(l.toString()) // [3, 2, 1]
+```
+
+`this`关键字指代接收者对象(receiver object)(也就是调用扩展函数时, 在**点号之前指定的对象实例**)。
+
+## 扩展函数是静态解析的
+
+扩展函数是**静态解析**的，并不是接收者类型的虚拟成员，在调用扩展函数时，具体被调用的的是哪一个函数，由调用函数的对象表达式来决定的，而不是动态的类型决定的:
+
+```kotlin
+open class C
+
+class D: C()
+
+fun C.foo() = "c"   // C扩展函数 foo
+
+fun D.foo() = "d"   // D扩展函数 foo
+
+ // 指定传入类型是 C 类
+fun printFoo(c: C) {
+    println(c.foo()) 
+}
+
+printFoo(D()) // 输出 c
+```
+
+> 若扩展函数和成员函数一致，则使用该函数时，会优先使用成员函数。
+
+```kotlin
+class C {
+    fun foo() { println("成员函数") }
+}
+
+/// 这里编译器会提示
+fun C.foo() { println("扩展函数") }
+
+val c = C()
+c.foo() /// 成员函数
+```
+
+## 扩展一个空对象
+
+在扩展函数内,可以通过`this`来判断接收者是否为空,这样即使接收者为空,也可以调用扩展函数。例如:
+
+```kotlin
+fun Any?.toString(): String {
+    if (this == null) return "null"
+    // 空检测之后，“this”会自动转换为非空类型，所以下面的 toString()
+    // 解析为 Any 类的成员函数
+    return toString()
+}
+
+val t = null
+println(t.toString()) /// 输出 null
+```
+
+除了函数，Kotlin 也支持属性对属性进行扩展:
+
+```kotlin
+val <T> List<T>.lastIndex: Int
+    get() = size - 1
+```
+
+扩展属性允许定义在类或者kotlin文件中，不允许定义在函数中。初始化属性因为属性没有后端字段（backing field），所以不允许被初始化，只能由显式提供的 getter/setter 定义。
+
+```kotlin
+val Foo.bar = 1 // 错误：扩展属性不能有初始化器
+```
+
+## 扩展声明为成员
+
+在一个类内部你可以为另一个类声明扩展。
+
+在这个扩展中，有个多个隐含的接受者，其中扩展方法定义所在类的实例称为分发接受者，而扩展方法的目标类型的实例称为扩展接受者。
+
+```kotlin
+class D {
+    fun bar() { println("D bar") }
+}
+
+class C {
+    fun baz() { println("C baz") }
+
+    /// 声明D的拓展函数
+    fun D.foo() {
+        bar()   // 调用 D.bar
+        baz()   // 调用 C.baz
+    }
+
+    fun caller(d: D) {
+        d.foo()   // 调用扩展函数
+    }
+}
+
+val c = C()
+val d = D()
+c.caller(d) // D bar C bar
+```
+
+在 C 类内，创建了 D 类的扩展。此时，C 被成为分发接受者，而 D 为扩展接受者。从上例中，可以清楚的看到，在扩展函数中，可以调用派发接收者的成员函数。
+
+假如在调用某一个函数，而该函数在分发接受者和扩展接受者均存在，则以扩展接收者优先，要引用分发接收者的成员你可以使用限定的`this`语法。
+
+```kotlin
+class D {
+    fun bar() { println("D bar") }
+}
+
+class C {
+    fun bar() { println("C bar") }  // 与 D 类 的 bar 同名
+
+    fun D.foo() {
+        bar()         // 调用 D.bar()，扩展接收者优先
+        this@C.bar()  // 调用 C.bar()
+    }
+    
+    fun caller(d: D) {
+        d.foo()   // 调用扩展函数
+    }
+}
+
+val c = C()
+val d = D()
+c.caller(d) // D bar C bar
+```
+
+以成员的形式定义的扩展函数, 可以声明为`open`, 而且可以在子类中覆盖. 也就是说, 在这类扩展函数的派 发过程中, 针对分发接受者是虚拟的(virtual), 但针对扩展接受者仍然是静态的。
+
+```kotlin
+open class A
+
+class B : A()
+
+open class C {
+    open fun A.foo() {
+        println("A.foo in C")
+    }
+
+    open fun B.foo() {
+        println("B.foo in C")
+    }
+
+    fun caller(a: A) {
+        a.foo()   // 调用扩展函数
+    }
+}
+
+class D : C() {
+    override fun A.foo() {
+        println("A.foo in D")
+    }
+
+    override fun B.foo() {
+        println("B.foo in D")
+    }
+}
+
+C().caller(A())   // 输出 "A.foo in C"
+D().caller(A())  // 输出 "A.foo in D" —— 分发接收者虚拟解析
+C().caller(B())  // 输出 "A.foo in C" —— 扩展接收者静态解析
 ```
 
 
