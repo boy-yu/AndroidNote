@@ -892,3 +892,108 @@ class Student(var name: String, age: Int, var no: String, var score: Int) : Pers
 如上代码片段中，子类`Student`主构造方法的第一个字段`name`前边加`var`关键字会报错。
 解决方法:1.删除var 2.将`Person`里面的`name`修改为`open`,然后使用`override`重写.
 
+# 接口
+
+## 实现接口
+
+使用`interface`关键字定义接口，允许方法有默认实现：
+
+```kotlin
+interface MyInterface {
+    // 未实现(必须重写)
+    fun bar()
+
+    // 已实现(可不重写)
+    fun foo() {
+        println("foo")
+    }
+}
+
+class Child : MyInterface {
+    // 必须的方法体
+    override fun bar() {
+        println("bar")
+    }
+}
+
+val child = Child()
+child.bar() /// 打印 bar
+child.foo() /// 打印 foo
+```
+
+## 接口中的属性
+
+接口中的属性只能是**抽象**的，**不允许**初始化值，接口**不会保存**属性值，实现接口时，必须重写属性
+
+```kotlin
+interface MyInterface{
+    var name:String //name 属性, 抽象的
+}
+
+class Child:MyInterface{
+    override var name: String = "jeremy" //重写属性
+}
+
+val child = Child()
+println(child.name) /// 打印 jeremy
+```
+
+## 函数重写
+
+实现多个接口时，可能会遇到同一方法继承多个实现的问题。例如:
+
+```kotlin
+interface A {
+    fun foo() { // 已实现
+        println("foo A")
+    }
+    
+    fun bar() // 未实现，没有方法体，是抽象的
+}
+
+interface B {
+    fun foo() { // 已实现
+        println("foo B")
+    }
+
+    fun bar() { // 已实现
+        println("bar B")
+    }
+}
+
+class C : A, B {
+    override fun foo() {
+        /// 两个接口都实现了方法 那就需要指定哪一个接口的foo方法
+        super<A>.foo()
+        super<B>.foo()
+    }
+
+    override fun bar() {
+        /// 只有一个接口都实现了方法 那就需要无需指定
+        super.bar()
+        println("bar C")
+    }
+}
+
+class D : A, B {
+    override fun foo() {
+        println("foo D")
+    }
+    
+    override fun bar() {
+        println("bar D")
+    }
+}
+
+/// 实现
+val c = C()
+val d = D()
+
+c.foo(); // foo A B
+c.bar(); // bar A B
+d.foo(); // foo D
+d.bar(); // bar D
+```
+
+
+
