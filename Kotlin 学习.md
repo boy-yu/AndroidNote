@@ -697,4 +697,198 @@ test.setInterFace(testInterFace)
   internal   // 同一个模块中可见
   ```
 
-  
+---
+
+# 继承
+
+Kotlin 中所有类都继承该 `Any` 类，它是所有类的超类，对于没有超类型声明的类是默认超类：
+
+```kotlin
+class Example // 从 Any 隐式继承
+```
+
+Any 默认提供了三个函数：
+
+```kotlin
+/// 比较两个对象是否“内容相等”
+equals(other: Any?): Boolean
+
+/** 返回对象的哈希值。
+ * 与equals()强关联
+ * 如果两个对象equals为true，它们的 hashCode() 必须相同
+ */
+hashCode(): Int
+
+/// 返回对象的字符串表示
+toString()
+```
+
+> 注意：Any 不是 java.lang.Object。
+
+如果一个类要被继承，可以使用`open`关键字进行修饰。
+
+```kotlin
+open class Base(p: Int) // 定义基类
+
+class Derived(p: Int) : Base(p)
+```
+
+## 构造函数
+
+### 子类有主构造函数
+
+如果子类有主构造函数， 则基类必须在主构造函数中**立即初始化**。
+
+```kotlin
+open class Person(var name: String, var age: Int)
+
+class Student(name: String, age: Int, var no: String, var score: Int) : Person(name, age)
+
+/// 实现
+val s = Student("jeremy", 18, "2019001", 100)
+println("学生名:${s.name}") /// 输出 学生名:jeremy
+println("年龄:${s.age}") /// 输出 年龄:18
+println("学生号:${s.no}") /// 输出 学生号:2019001
+println("成绩:${s.score}") /// 输出 成绩:100
+```
+
+### 子类没有主构造函数
+
+如果子类没有主构造函数，则必须在每一个二级构造函数中用`super`关键字初始化基类，或者在代理另一个构造函数。初始化基类时，可以调用基类的不同构造方法。
+
+```kotlin
+/**用户基类**/
+open class Person(name:String){
+    /**次级构造函数**/
+    constructor(name:String,age:Int):this(name){
+        //初始化
+        println("-------基类次级构造函数---------")
+    }
+}
+
+/**子类继承 Person 类**/
+class Student:Person{
+
+    /**次级构造函数**/
+    constructor(name:String,age:Int,no:String,score:Int):super(name,age){
+        println("-------继承类次级构造函数---------")
+        println("学生名： ${name}")
+        println("年龄： ${age}")
+        println("学生号： ${no}")
+        println("成绩： ${score}")
+    }
+}
+
+fun main(args: Array<String>) {
+    var s =  Student("Runoob", 18, "S12345", 89)
+}
+
+/// 输出结果
+-------基类次级构造函数---------
+-------继承类次级构造函数---------
+学生名： Runoob
+年龄： 18
+学生号： S12345
+成绩： 89
+```
+
+## 方法重写
+
+在基类中，使用`fun`声明函数时，此函数默认为`final`修饰，不能被子类重写。如果允许子类重写该函数，那么就要手动添加`open`修饰它, 子类重写方法使用`override`关键词：
+
+```kotlin
+/**用户基类**/
+open class Person{
+    open fun study(){       // 允许子类重写
+        println("我毕业了")
+    }
+}
+
+/**子类继承 Person 类**/
+class Student : Person() {
+
+    override fun study(){    // 重写方法
+        println("我在读大学")
+    }
+}
+
+val s =  Student()
+s.study(); // 我在读大学
+```
+
+如果有多个相同的方法（继承或者实现自其他类，如A、B类），子类如果在重写时需要实现父类中的方法,需要指代使用那个父类的方法,不然只写`super.xx()`会报错,不知道调用那个
+
+```kotlin
+open class A {
+    open fun f () { println("A") }
+    fun a() { println("a") }
+}
+
+interface B {
+    fun f() { println("B") } //接口的成员变量默认是 open 的
+    fun b() { println("b") }
+}
+
+class C() : A(), B {
+    override fun f() {
+        //
+//        super<A>.f()//调用 A.f()
+//        super<B>.f()//调用 B.f()
+        super.f()// 报错不知道用哪个
+        println("C")
+    }
+}
+
+val c =  C()
+c.f(); // 打印 C
+```
+
+## 属性重写
+
+属性重写使用`override`关键字，属性必须具有兼容类型，每一个声明的属性都可以通过初始化程序或者`getter`方法被重写：
+
+```kotlin
+open class Foo {
+    open val x: Int get { …… }
+}
+
+class Bar1 : Foo() {
+    override val x: Int = ……
+}
+```
+
+你可以用一个`var`属性重写一个`val`属性，但是**反过来不行**。因为`val`属性本身定义了`getter`方法，重写为`var`属性会在衍生类中额外声明一个`setter`方法
+
+你可以在主构造函数中使用`override`关键字作为属性声明的一部分:
+
+```kotlin
+interface Foo {
+    val count: Int
+}
+
+class Bar1(override val count: Int) : Foo
+
+class Bar2 : Foo {
+    override var count: Int = 0
+}
+```
+
+> 注意:
+> 子类继承父类时，**不能**有跟**父类同名**的变量，除非父类中该变量为`private`，或者父类中该变量为`open` 并且子类用`override`关键字重写
+
+```kotlin
+open class Person(var name: String, var age: Int) {    
+    open var sex: String = "unknow"    
+    init {        
+        println("基类初始化")    
+    }
+}
+// 子类的主构造方法的 name 前边也加了 var，这是不允许的，会报'name' hides member of supertype and needs 'override' modifier
+class Student(var name: String, age: Int, var no: String, var score: Int) : Person(name, age) {
+    override var sex: String = "male"
+}
+```
+
+如上代码片段中，子类`Student`主构造方法的第一个字段`name`前边加`var`关键字会报错。
+解决方法:1.删除var 2.将`Person`里面的`name`修改为`open`,然后使用`override`重写.
+
