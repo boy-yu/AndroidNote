@@ -1049,6 +1049,103 @@ d.foo(); // foo D
 d.bar(); // bar D
 ```
 
+## 接口和抽象的区别
+
+| 对比点   | 抽象类     | 接口             |
+| -------- | ---------- | ---------------- |
+| 是否是类 | ✔ 是       | ✘ 不是类         |
+| 构造函数 | ✔ 有       | ✘ 无             |
+| 字段     | ✔ 真实字段 | ✘ 不能有真实字段 |
+| 默认实现 | ✔ 支持     | ✔ 支持           |
+| 多继承   | ✘ 只能一个 | ✔ 可以多个       |
+| 关系     | 强 is-a    | 弱 can-do        |
+| 适用场景 | 模板、基类 | 能力、规范       |
+
+### 抽象
+
+在抽象类里面,如果已经实现了某个函数,这个函数无法抽象,子类也无法重写已实现的函数
+
+```kotlin
+abstract class Animal(val name: String) {
+    abstract fun makeSound()
+
+    /// 如果已经实现了 无法抽象
+    fun run() {
+        println("$name is running")
+    }
+}
+
+
+class Dog(name: String) : Animal(name) {
+    override fun makeSound() {
+        println("$name is barking")
+    }
+    // 无法重写
+    override fun run() {
+        println("$name is barking")
+    }
+}
+```
+
+### 接口
+
+在接口里面,无论内部函数是否实现了函数,都可以进行重写,并且可以调用接口的函数
+
+```kotlin
+interface Flyable {
+    fun fly()  // 抽象方法
+
+    fun land() {
+        println("Landing...")
+    }
+}
+
+class Bird : Flyable {
+    override fun fly() = println("Bird flying")
+    override fun land() {
+        super.land() /// 调用接口的 land() 方法
+        println("Bird landing")
+    }
+}
+```
+
+## 接口与抽象类
+
+当一个接口需要多个实现的时候,我们就可以这样写
+
+```kotlin
+/// 行为规范
+interface Action {
+    fun run()
+    fun fly()
+    fun swim()
+}
+
+/// 提供默认实现，减少子类负担
+abstract class Animal : Action {
+    ///可以只重写一个 但是必须要有一个
+    override fun run() {}    // 默认空实现
+    override fun fly() {}
+    override fun swim() {}
+}
+
+/// 子类按需实现自己真实的能力
+class Bird : Animal() {
+    override fun fly() = println("Bird fly")
+}
+
+class Dog : Animal() {
+    override fun run() = println("Dog run")
+}
+
+class Fish : Animal() {
+    override fun swim() = println("Fish swim")
+}
+
+```
+
+---
+
 # 拓展
 
 Kotlin 可以对一个类的属性和方法进行扩展，且不需要继承或使用 `Decorator(装饰器)` 模式
@@ -1814,4 +1911,281 @@ println(age) // 符合要求 赋值 18
 # 函数
 
 ## 内联函数
+
+### inline
+
+作用：把函数内容“复制”到调用处
+
+不再真正调用函数，也不会创建 lambda 对象。
+**优点**
+
+- 性能更好(少一次函数调用)
+- lambda不在创建对象(节省内存)
+- 允许lambda做"**非局部返回**"
+
+```kotlin
+inline fun doSomething(block: () -> Unit) {
+    println("Start")
+    block()
+    println("End")
+}
+
+doSomething {
+    println("Inside")
+}
+
+/// 返回值
+Start
+Inside
+End
+```
+
+### noinline
+
+如果某些 lambda 需要当“对象”使用（如传递、保存），就不能内联。
+
+否则会报错，必须标 noinline。
+
+```kotlin
+// 非内联函数：接收普通 lambda
+fun normalFunction(task: () -> Unit) {
+    println("执行非内联函数的任务")
+    task()
+}
+
+// inline 函数，其中一个 lambda 用 noinline
+inline fun mixInline(
+    inlineAction: () -> Unit,
+    noinline noInlineAction: () -> Unit
+) {
+    // 内联 lambda 只能即时执行
+    inlineAction()
+
+    // noinline lambda 可以传给非内联函数
+    normalFunction(noInlineAction)
+}
+
+fun main() {
+    mixInline(
+        inlineAction = { println("内联逻辑执行") },
+        noInlineAction = { println("noinline 逻辑被传给非内联函数执行") }
+    )
+}
+
+/// 输出结果
+内联逻辑执行
+执行非内联函数的任务
+noinline 逻辑被传给非内联函数执行
+```
+
+### crossinline
+
+因为 inline 会把 lambda 代码展开到调用处，因此你可以这么写：
+
+```kotlin
+inline fun test(block: () -> Unit) {
+    println("A")
+    block()  // 允许 return 跳出外层函数
+    println("B")
+}
+
+test {
+    println("C")
+    return
+    println("D")
+}
+println("E")
+
+/// 返回值 A C
+```
+
+期望 return 的只是 lambda，而不是外层函数,如果你想禁止这种行为，就用`crossinline`。
+
+```kotlin
+inline fun test(crossinline block: () -> Unit) {
+    println("A")
+    block()  // 允许 return 跳出外层函数
+    println("B")
+}
+
+test {
+    println("C")
+    return // 报错了不允许return
+    println("D")
+}
+println("E")
+```
+
+### 三者的关系
+
+| 关键字          | 是否内联 lambda | 是否允许非局部return | 用途                        |
+| --------------- | --------------- | -------------------- | --------------------------- |
+| **inline**      | ✔ 是            | ✔ 是                 | 高性能、高阶函数            |
+| **noinline**    | ✘ 否            | ✘ 否                 | 需要保存/传递 lambda 时     |
+| **crossinline** | ✔ 是            | ✘ 否                 | lambda 不能 return 出外层时 |
+
+---
+
+## 标准函数
+
+Kotlin 标准函数主要有：
+
+| 函数名  | 作用                         | 常用场景            |
+| ------- | ---------------------------- | ------------------- |
+| `let`   | 处理作用域、链式调用、空安全 | 可空对象操作        |
+| `run`   | 以对象为上下文，返回最后一行 | 初始化、计算结果    |
+| `also`  | 以对象为 it，返回对象本身    | 调试、链式副作用    |
+| `apply` | 配置对象，返回对象本身       | 构建对象（Builder） |
+| `with`  | 和 run 很像，但不是扩展函数  | 配置对象            |
+
+### let
+
+处理可空对象／链式调用,返回 lambda 最后一行的结果.
+
+```kotlin
+val user = User("jeremy", 18)
+val length = user.name.let {
+    it.length
+    println("名字长度${it.length}")
+    it.uppercase()
+}
+println("用户名:${user.name}")
+println("返回结果:$length")
+
+/// 返回结果
+名字长度6
+用户名jeremy
+返回结果JEREMY
+```
+
+### run
+
+在上下文中执行代码并返回结果
+
+和 let 类似，但 **this** 代表对象
+
+``` kotlin
+class User {
+    var name: String? = null
+    var age: Int? = null
+}
+
+val user = User().run {
+    name = "Jeremy"
+    age = 18
+    this  // 如果你想返回对象，可以这样写
+}
+println("[name: ${user.name}, age: ${user.age}]")
+
+/// 返回结果
+[name: Jeremy, age: 18]
+```
+
+### also
+
+用 it 做副作用操作，不改变链式返回值
+
+返回对象本身
+
+``` kotlin
+val list = mutableListOf(1, 2, 3)
+    .also { it.add(4) }
+    .also { println("最终内容：$it") }
+
+print(list.toString())
+
+/// 打印结果
+最终内容：[1, 2, 3, 4]
+[1, 2, 3, 4]
+```
+
+### apply
+
+**返回对象本身**, 使用 this 操作对象
+
+```kotlin
+class User {
+    var name: String? = null
+    var age: Int? = null
+}
+
+val user = User().apply {
+    this.name = "Jeremy" //this 可不要
+    age = 18
+}
+println("[name: ${user.name}, age: ${user.age}]")
+
+///  打印
+[name: Jeremy, age: 18]
+```
+
+> 类似于run 结尾加this 这个自动添加了 不需要手动添加
+
+### with
+
+结构化写法，对象作为参数,功能与 run 类似，但写法不同
+
+```kotlin
+val user = User().apply {
+    name = "Jeremy"
+    age = 18
+}
+
+val result = with(user) {
+    println(name)
+    println(age)
+    age + 5  // 返回值
+}
+```
+
+### 区别
+
+| 函数名    | 对象名 | 返回值          | 常用                 |
+| --------- | ------ | --------------- | -------------------- |
+| **let**   | `it`   | lambda 最后一行 | 可空、安全链式       |
+| **run**   | `this` | lambda 最后一行 | 计算结果、上下文操作 |
+| **apply** | `this` | 对象本身        | 配置对象             |
+| **also**  | `it`   | 对象本身        | 副作用／调试         |
+| **with**  | `this` | lambda 最后一行 | 多个操作但不需要链式 |
+
+```kotlin
+data class User(var name: String, var age: Int)
+
+
+fun main() {
+    val user = User("Jeremy", 20)
+
+    // let：使用 it，返回表达式
+    val length = user.name.let {
+        it.length
+    }
+    println("length:$length") // length:6
+
+    // run：使用 this，返回表达式
+    val result = user.run {
+        age + 1
+    }
+
+    println("result:$result") // result:21
+
+    // apply：配置 this，返回 user
+    val newUser = user.apply {
+        age = 22
+    }
+
+    println("newUser:${newUser}") // newUser:User(name=Jeremy, age=22)
+
+    // also：使用 it 做副作用，返回 user
+    val debug = user.also {
+        println("User is $it") // User is User(name=Jeremy, age=22)
+    }
+
+    // with：不是扩展函数，返回表达式
+    val ageAfter = with(user) {
+        age + 5
+    }
+    println("ageAfter:$ageAfter") // ageAfter:27
+
+}
+```
 
