@@ -188,6 +188,72 @@ intArray.getOrNull(10) // 返回 null
 > `原始类型`不会进行拆箱和装箱,内存占用小,访问速度更快 
 > `装箱拆箱`:暂时略过... 涉及JVM后续深入
 
+### List
+
+List 是长度可变与不可变两套体系（只读 vs 可变），但本质是更高级的集合接口。
+
+```kotlin
+val list = listOf(1, 2, 3)
+// list[0] = 10  // ❌ cannot set
+// list.add(4)    // ❌ cannot add
+
+val mList = mutableListOf(1, 2, 3)
+mList.add(4)     // ✔ 可以扩容
+mList[0] = 100   // ✔ 可以修改
+
+
+/// ----------  遍历集合 ----------
+list.forEach { println(it) }
+// 下标 + 值
+list.forEachIndexed { index,value ->
+    println("index:$index,value:$value")
+}
+for (item in list) {
+    println(item)
+}
+
+/// ----------  查找元素 ----------
+/// 找到对应的元素
+val item = list.find { it == 10 }
+
+/// 找到最后一个匹配
+val last = list.findLast { it > 5 }
+
+/// 查找满足条件的索引
+val index = list.indexOfFirst { it.id == 1 } //没有就返回 -1
+
+/// 元素是否在list里
+list.contains(3)
+3 in list
+
+
+/// ---------- List 转换/映射操作 ----------
+list.map { Pair(it.id, it.name) }
+
+list.associate { it.id to it.name } /// 创建一个只有key-value的Map
+
+list.associateBy { it.id } /// 创建一个指定key value为it的map
+
+list.filter { it % 2 == 0 } /// 筛选是的
+
+list.filterNot { it % 2 == 0 } /// 筛选不是的
+
+list.take(2)       // 获取前两个
+list.takeLast(2)   // 获取后两个
+
+list.drop(1)       // 舍弃前1个
+list.dropLast(1)   // 舍弃后1个
+
+
+/// ---------- List 排序 ----------
+list.sort() // 返回Unit
+list.sorted() // 升序 返回List 先判断是否是集合
+list.sortedDescending() // 降序
+listString.sortedBy { it.length } // 根据条件排序
+```
+
+
+
 ### Map
 
 Map 是 **键值对（Key-Value）** 容器，核心价值是「通过键快速查询值」（底层哈希表，查询效率 O (1)），键（Key）唯一，值（Value）可重复。
