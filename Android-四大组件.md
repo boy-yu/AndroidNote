@@ -382,5 +382,92 @@ private fun loadContacts() {
 
 ---
 
+# Broadcast Receiver
 
+广播，在我们的应用中起着一个非常重要的角色。就比如说我们经常使用的`Intent`、`IntentFilter`，就有着广播的作用。
+
+ **BroadcastReceiver 是做什么的**
+
+它有 3 大能力：
+
+| 能力                       | 说明                                                 |
+| -------------------------- | ---------------------------------------------------- |
+| **监听系统广播（最常用）** | 网络变化、电量变化、开机完成、耳机插拔、安装卸载 App |
+| **App 内部事件通知**       | 例如登录成功→通知其他页面刷新 UI                     |
+| **跨 App 发送消息**        | 比如支付宝启动微信支付（老机制，现在逐渐限制）       |
+
+## 两种广播
+
+虽然是两种广播形式，但是他们同样要干一件事情，就是继承`BroadcastReceiver`，并重写`onReceive()`方法。
+
+### 应用内广播
+
+在 Activity / Fragment 里写：
+
+```kotlin
+private val receiver = object : BroadcastReceiver() {
+    override fun onReceive(context: Context?, intent: Intent?) {
+        Log.d("Receiver", "收到广播: ${intent?.action}")
+    }
+}
+
+/// 监听广播
+override fun onResume() {
+    super.onResume()
+    registerReceiver(receiver, IntentFilter("广播的Key"))
+}
+/// 释放广播
+override fun onPause() {
+    super.onPause()
+    unregisterReceiver(receiver)
+}
+```
+
+###  静态注册（Manifest 注册）
+
+在 manifest 中声明：
+
+```xml
+<receiver android:name=".MyReceiver">
+    <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+    </intent-filter>
+</receiver>
+```
+
+Receiver 代码：
+
+```kotlin
+class MyReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        Log.d("Receiver", "开机完成广播收到")
+    }
+}
+```
+
+## 如何发送广播
+
+```kotlin
+/// 发送广播
+val intent = Intent("MY_ACTION")
+sendBroadcast(intent)
+
+/// 接收广播
+private val receiver = object : BroadcastReceiver() {
+    override fun onReceive(context: Context?, intent: Intent?) {
+        Log.d("Receiver", "收到广播: ${intent?.action}")
+    }
+}
+
+/// 监听广播
+override fun onResume() {
+    super.onResume()
+    registerReceiver(receiver, IntentFilter("MY_ACTION"))
+}
+/// 释放广播
+override fun onPause() {
+    super.onPause()
+    unregisterReceiver(receiver)
+}
+```
 
