@@ -276,7 +276,7 @@ val immutableMap: Map<String, Int> = mapOf(
     "c" to 3
 )
 immutableMap["a"] = 1 //报错
- immutableMap.put("a", 1) //报错
+immutableMap.put("a", 1) //报错
 
 // 2. 可变 Map（需修改键值对时用）
 val mutableMap: MutableMap<String, Int> = mutableMapOf(
@@ -385,7 +385,7 @@ if(a>b){...}else if(a>c){...}else{...}
 
 /// 简洁写法
 val c = if (a>b) a else b
-/// 三元
+/// 二元
 val c = a ?: b
 
 /// 区间
