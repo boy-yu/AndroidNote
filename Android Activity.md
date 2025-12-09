@@ -251,6 +251,8 @@ class SingleTaskActivity : AppCompatActivity() {
 | singleTask     | 栈内单例，清空上方 Activity | 复用则移到栈顶，否则新建入栈       | 首页、核心页、需清空中间页的页面     | 注意清空上方 Activity 导致的业务数据丢失 |
 | singleInstance | 全局单例，独占独立栈        | 切换到独立栈，返回时先销毁自身栈   | 系统级全局页面（来电、锁屏）         | 极度慎用，返回逻辑复杂                   |
 
+##  
+
 # Intent 与 Activity 通信
 
 Intent 是 “意图”，用于组件间通信（如启动 Activity、传递数据），分为**显式 Intent**（明确指定目标组件）和**隐式 Intent**（通过动作、类别匹配目标组件）。
@@ -277,6 +279,7 @@ val age = intent.getIntExtra("age", 0)
 ```kotlin
 /// 传递一个对象(官网推荐做法)
 // 定义一个 Parcelable 对象
+id("kotlin-parcelize") // 引包
 @Parcelize
 data class User(val name: String,val age: Int) : Parcelable
 val user = User("Jeremy", 22)
