@@ -2255,3 +2255,81 @@ fun main() {
 }
 ```
 
+# 序列化与反序列化
+
+## 定义
+
+- 序列化:把**内存中的对象**（如自定义 `User`、`Order` 类）转换成**字节流 / 可传输格式**，使其能跨组件、跨进程传输，或持久化到文件 / SP 中
+- 反序列化:把**字节流 / 存储的格式**还原成内存中的对象，恢复对象的原始数据和状态。
+
+Android 中序列化的核心目的：解决「不同组件（Activity/Fragment）、不同进程间传递自定义对象」「对象持久化存储」的问题（比如 Intent 传自定义对象、AIDL 跨进程通信、保存用户信息到 SP）。
+
+## 两种核心序列化方式
+
+Android 支持两种主流序列化方案：`Serializable`（Java 原生）和 `Parcelable`（Android 专属），两者设计目标、性能、适用场景差异极大：
+
+| 维度     | Serializable（Java 原生）                  | Parcelable（Android 专属）                      |
+| -------- | ------------------------------------------ | ----------------------------------------------- |
+| 底层实现 | 基于 Java 反射机制，自动读写对象字段       | 手动实现内存块读写，直接操作原生数据（无反射）  |
+| 性能     | 低（反射产生大量临时对象，冗余数据多）     | 高（直接操作内存，效率是 Serializable 10 倍 +） |
+| 代码量   | 极少（仅标记接口 + 可选 serialVersionUID） | 稍多（需手动实现序列化 / 反序列化方法）         |
+| 核心优势 | 简单、支持持久化（存文件 / SP）            | 高效、适配 Android 组件 / IPC 场景              |
+| 核心劣势 | 性能差、不适合高频传输                     | 不支持直接持久化（Parcel 是内存数据）           |
+| 版本兼容 | 依赖 `serialVersionUID` 保证兼容           | 需手动保证字段读写顺序一致                      |
+
+### 两种方式的核心原理 & 适用场景
+
+#### Serializable（简单但低效）
+
+**核心原理**
+
+`Serializable` 是「标记接口」（无任何抽象方法），仅告诉 JVM：这个类的对象可以被序列化。
+
+- 序列化：通过 `ObjectOutputStream` 将对象的字段（非 `transient` 修饰）转换成字节流；
+- 反序列化：通过 `ObjectInputStream` 读取字节流，反射重建对象（**反序列化时不会执行构造函数**）。
+
+**关键注意点**
+
+- 必须加 `serialVersionUID`：手动指定版本号（如 `private static final long serialVersionUID = 1L;`），否则 JVM 会根据类结构自动生成 —— 类结构变化（增删字段）后，UID 改变会导致反序列化直接抛 `InvalidClassException`；
+- `transient` 关键字：标记的字段不会被序列化（比如临时数据、敏感信息如密码）；
+- 成员变量需可序列化：若对象包含其他自定义类成员，该成员类也必须实现 `Serializable`。
+
+**适用场景**
+
+- 对象持久化：保存到本地文件、SharedPreferences（比如把用户信息序列化后存 SP）；
+- 低频率、小数据量传输：比如偶尔通过 Intent 传简单对象（非高频场景）；
+- 跨平台 / 网络传输：比如将对象转字节流通过网络发送（替代 JSON 的兜底方案）。
+
+####  Parcelable（高效，Android 首选）
+
+**核心原理**
+
+`Parcelable` 是 Android 专为「跨进程通信（IPC）」设计的序列化方案，核心是**手动控制对象字段的读写**，直接操作内存块（Parcel 是 Android 封装的内存容器），避免反射开销。
+
+- 序列化：重写 `writeToParcel()` 方法，手动将字段写入 `Parcel`；
+- 反序列化：通过 `CREATOR` 静态常量，重写 `createFromParcel()` 方法，从 `Parcel` 中按顺序读取字段，重建对象。
+
+**关键注意点**
+
+- 字段读写顺序必须一致：`writeToParcel()` 写字段的顺序，必须和 `createFromParcel()` 读的顺序完全相同（否则数据错乱）；
+- 支持的字段类型：基本类型（int/long 等）、String、List/Map（需是 Parcelable/Serializable 类型）、其他 Parcelable 对象（嵌套序列化需调用该对象的 `writeToParcel()`）；
+- 大小限制：Parcel 有内存上限（约 1MB），传输超大对象（如 Bitmap、大列表）会抛 `TransactionTooLargeException`。
+
+**适用场景**
+
+- 组件间传参：Activity/Fragment 之间通过 Intent/Bundle 传自定义对象（比如从列表页传 `Goods` 对象到详情页）；
+- 跨进程通信：AIDL、Messenger、ContentProvider 等 IPC 场景（比如 App 和后台 Service 传对象）；
+- 高频操作：RecyclerView 适配器传复杂对象（追求性能，避免反射开销）。
+
+## 进阶补充
+
+1. **简化 Parcelable 代码**：
+   Android Studio 可通过插件（如「Parcelable Code Generator」）或 Kotlin 的 `@Parcelize` 注解（需开启实验性特性），自动生成 Parcelable 相关代码，无需手动写；
+2. **混合使用两种方式**：
+   同一个类可同时实现 `Serializable` 和 `Parcelable`—— 持久化用 `Serializable`，组件传参用 `Parcelable`；
+3. **替代方案：JSON 序列化**：
+   比如 Gson/Jackson 将对象转 JSON 字符串（文本格式），虽不是原生序列化，但跨平台、易调试，性能介于两者之间，适合网络传输、跨端交互；
+4. **避坑点**：
+   - 不要序列化大对象（如 Bitmap）：优先传路径 / ID，而非直接序列化对象；
+   - 反序列化时的空值处理：字段缺失时，Serializable 会赋默认值（如 int=0、String=null），Parcelable 需手动判空；
+   - 内存泄漏：序列化对象若持有 Activity 引用，会导致组件无法回收（建议序列化数据类，而非持有上下文的类）。
