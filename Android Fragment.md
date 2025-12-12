@@ -276,7 +276,7 @@ class MainActivity : AppCompatActivity() {
 | `onResume()`          | `onResume()`                                                 | Activity 可交互，Fragment 也可交互                           |
 | `onPause()`           | `onPause()`                                                  | Activity 失去焦点，Fragment 也失去焦点                       |
 | `onStop()`            | `onStop()`                                                   | Activity 完全不可见，Fragment 也不可见                       |
-| `onDestroy()`         | `onPause()` → `onStop()` → `onDestroyView()` → `onDestroy()` → `onDetach()` | Activity 销毁，Fragment 也销毁                               |
+| `onDestroy()`         | `onDestroyView()` → `onDestroy()` → `onDetach()`             | Activity 销毁，Fragment 也销毁                               |
 | 屏幕旋转（重建）      | `onPause()` → `onStop()` → `onDestroyView()` → `onDetach()` → `onAttach()` → `onCreate()` → `onCreateView()` → `onViewCreated()` → `onStart()` → `onResume()` | 视图销毁后重建，实例可能保留（若 `setRetainInstance(true)`） |
 
 ### 生命周期关键场景演示

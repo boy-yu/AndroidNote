@@ -2260,3 +2260,213 @@ fun main() {
 }
 ```
 
+# 协程
+
+Kotlin 协程的核心使用方式围绕「协程构建器」展开，不同构建器对应不同的「返回值、线程阻塞行为、异常处理策略」，适配从 “简单异步执行” 到 “并发任务调度” 的全场景。
+
+**核心前置概念**
+
+协程的执行依赖 3 个核心要素：
+
+1. **作用域（CoroutineScope）**
+   管控协程生命周期(如 Android 的 `viewModelScope`/`lifecycleScope`、通用的 `CoroutineScope()`)；
+
+2. **构建器（Builder）**
+   启动协程的入口(如 `launch`/`async`);
+
+3. **调度器（Dispatcher）**
+
+   指定协程执行的线程(`Dispatchers.Main`/`IO`/`Default`);
+
+## 5类核心使用方式
+
+### launch
+
+无返回值的 “火忘式” 异步执行
+
+```kotlin
+// 通用作用域（需手动管理取消）
+val scope = CoroutineScope(Dispatchers.Main)
+// Android 生命周期绑定作用域（自动取消）
+// val scope = lifecycleScope / viewModelScope
+
+val job = scope.launch(Dispatchers.IO) {
+    // 执行无返回值的异步任务（如文件写入、日志上报）
+    writeFile("data.txt", "content")
+}
+
+// 可选：手动取消协程（作用域绑定的协程无需手动取消）
+// job.cancel()
+```
+
+**核心区别**
+
+- 无返回值（返回 `Job` 对象，用于管控协程生命周期：取消 / 等待）
+- 不阻塞调用线程，仅在指定调度器异步执行
+- 属于 “火忘式”（fire-and-forget），执行结果无需回调
+
+**适用场景**
+
+- 执行无需返回结果的异步任务（如 UI 状态更新、日志上报、数据缓存、网络请求回调处理）
+- Android 中与生命周期绑定（`lifecycleScope.launch` 自动在页面销毁时取消，避免内存泄漏）
+
+### async/await
+
+有返回值的并发执行(与Flutter一样,仅多了一个切换线程的操作)
+
+```kotlin
+scope.launch(Dispatchers.Main) {
+    // 1. 启动多个异步任务（并发执行）
+    val deferred1 = async(Dispatchers.IO) { fetchUserInfo() } // 返回 Deferred<User>
+    val deferred2 = async(Dispatchers.IO) { fetchUserOrders() } // 返回 Deferred<List<Order>>
+
+    // 2. 等待结果（挂起当前协程，不阻塞线程）
+    val user = deferred1.await()
+    val orders = deferred2.await()
+
+    // 3. 切回主线程更新UI
+    updateUI(user, orders)
+}
+```
+
+**核心区别**
+
+- 有返回值：返回 `Deferred<T>`，通过 `await()` 获取结果;
+- 并发特性：多个 `async` 可并行执行(区别于串行的 `withContext`);
+- `await()` 会挂起当前协程（而非阻塞线程），直到任务完成;
+- 即使不调用 `await()`，`async` 启动的协程也会执行(仅拿不到结果);
+
+**适用场景**
+
+- 需要获取异步任务返回结果(如接口请求、数据库查询);
+- 多任务并发执行(如同时请求 “用户信息 + 订单列表”，减少总耗时);
+- 注意：**避免单个 `async` 配合 `await()` 使用**(不如 `withContext` 简洁);
+
+### runBlocking
+
+阻塞当前线程的协程（仅测试 / 主函数）
+
+```kotlin
+// 阻塞主线程，直到协程执行完毕
+fun main() = runBlocking {
+    println("主线程开始")
+    launch { delay(1000); println("协程执行完成") }
+    println("主线程等待协程...")
+}
+// 输出：主线程开始 → 主线程等待协程... → 协程执行完成
+```
+
+**核心区别**
+
+- 阻塞调用线程（如主线程），直到协程体执行完毕；
+- 本质是 “桥接同步代码和协程”，不属于真正的异步；
+- 返回值为协程体的最后一行结果 (`runBlocking<T>`);
+
+**适用场景**
+
+- 仅用于 **测试代码**（单元测试中模拟协程执行）或 **main 函数**（程序入口）
+- ❌ 绝对禁止在 Android UI 线程使用（会导致 ANR）
+
+### withContext
+
+调度器切换 + 有返回值（无新协程）
+
+```kotlin
+scope.launch(Dispatchers.Main) {
+    // 切到 IO 线程执行耗时操作（挂起当前协程，不创建新协程）
+    val data = withContext(Dispatchers.IO) {
+        readFile("data.txt") // 返回 String
+    }
+    // 自动切回主线程，更新UI
+    tvContent.text = data
+}
+```
+
+**核心区别**
+
+- 有返回值，无新协程：复用当前协程，仅切换调度器 (区别于 `async` 会创建新协程);
+- 挂起当前协程（不阻塞线程），执行完自动切回原调度器;
+- 替代 `launch + async + await` 的极简写法(单个有返回值任务)
+
+**适用场景**
+
+- 单任务线程切换 (如 UI 线程 → IO 线程读文件 / 请求接口 → 切回 UI 线程);
+- 替代 `async { ... }.await()` (更简洁，无多余协程创建);
+- 强制指定任务的执行线程(如 CPU 密集型任务用 `Dispatchers.Default`)
+
+### coroutineScope/supervisorScope
+
+两者都是 “挂起函数”，用于在协程内创建子作用域，等待所有子协程完成后才继续执行，核心区别是**异常处理策略**。
+
+#### coroutineScope
+
+子协程异常 “一错全错”
+
+```kotlin
+scope.launch {
+    try {
+        val result = coroutineScope {
+            // 子协程1
+            launch { fetchData1() }
+            // 子协程2（若抛异常，所有子协程+当前协程都会取消）
+            val data2 = async { fetchData2() } 
+            data2.await()
+        }
+    } catch (e: Exception) {
+        // 捕获任意子协程的异常
+        handleError(e)
+    }
+}
+```
+
+#### supervisorScope
+
+子协程异常 “互不影响”
+
+```kotlin
+scope.launch {
+    supervisorScope {
+        // 子协程1抛异常，不影响子协程2
+        launch { fetchData1() } 
+        launch { fetchData2() }
+    }
+    // 所有子协程执行完（即使部分失败），才会执行这里
+    println("所有子任务执行完毕")
+}
+```
+
+**核心区别**
+
+| 特性     | coroutineScope                        | supervisorScope                        |
+| -------- | ------------------------------------- | -------------------------------------- |
+| 异常传播 | 子协程异常会取消所有子协程 + 当前协程 | 子协程异常仅取消自身，不影响其他子协程 |
+| 适用场景 | 子任务 “一荣俱荣，一损俱损”           | 子任务独立（失败不影响其他）           |
+
+**适用场景**
+
+- `coroutineScope`：多任务依赖 (如 “登录 + 拉取用户信息”，登录失败则拉取任务无意义)
+- `supervisorScope`：多任务独立 (如列表多个接口请求、页面多个模块初始化，一个失败不影响其他)；
+- 替代 `runBlocking`（非阻塞，仅挂起），用于协程内管控子任务。
+
+## 调度器（协程的线程策略）
+
+所有构建器都可指定 `Dispatcher`，决定协程执行的线程
+
+| 调度器                 | 适用场景                          | 线程特性                      |
+| ---------------------- | --------------------------------- | ----------------------------- |
+| Dispatchers.Main       | Android UI 操作（更新控件、弹窗） | 主线程（单线程）              |
+| Dispatchers.IO         | IO 密集型（网络、文件、数据库）   | 线程池（按需创建，最多 64）   |
+| Dispatchers.Default    | CPU 密集型（计算、排序、解析）    | 线程池（核心数 = CPU 核心数） |
+| Dispatchers.Unconfined | 无固定线程（少用）                | 随挂起点切换线程              |
+
+## 核心区别对比表
+
+| 构建器          | 返回值      | 是否阻塞线程 | 是否挂起   | 异常传播       | 核心场景                          |
+| --------------- | ----------- | ------------ | ---------- | -------------- | --------------------------------- |
+| launch          | Job         | 否           | 否         | 传播到父协程   | 无返回值异步任务（UI 更新、日志） |
+| async/await     | Deferred<T> | 否           | await 挂起 | 传播到父协程   | 多任务并发、有返回值异步任务      |
+| runBlocking     | T           | 是           | 否         | 传播到调用线程 | 测试 / 主函数（桥接同步代码）     |
+| withContext     | T           | 否           | 是         | 传播到父协程   | 单任务线程切换、有返回值          |
+| coroutineScope  | T           | 否           | 是         | 子协程一错全错 | 子任务依赖、统一异常处理          |
+| supervisorScope | T           | 否           | 是         | 子协程互不影响 | 子任务独立、部分失败不影响整体    |
+
